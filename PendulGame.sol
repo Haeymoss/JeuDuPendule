@@ -2,9 +2,11 @@
 pragma solidity ^0.8.0;
 
 contract PendulumGame {
+    
     uint256 private constant MAX_GUESSES = 6;
     uint256 private sessionCounter = 0;
 
+    // Struct to represent a game session
     struct Session {
         uint256 sessionId;
         address player1;
@@ -18,34 +20,39 @@ contract PendulumGame {
         mapping(bytes1 => bool) guessedLetters;
     }
 
+    // Mapping to store game sessions
     mapping(uint256 => Session) public sessions;
 
+    // Event declarations
     event SessionCreated(uint256 indexed sessionId, address indexed player1, uint256 betAmount);
     event SessionJoined(uint256 indexed sessionId, address indexed player2);
     event WordRevealed(uint256 indexed sessionId);
     event GuessMade(uint256 indexed sessionId, address indexed player, string guess, bool correct, uint256 guessesLeft);
     event SessionClosed(uint256 indexed sessionId, address indexed winner, uint256 winnings);
 
+    // Modifiers to restrict access to certain functions
     modifier onlyPlayer1(uint256 _sessionId) {
         require(msg.sender == sessions[_sessionId].player1, "Only player1 can perform this action");
         _;
     }
-
+    // Modifier to restrict access to player2
     modifier onlyPlayer2(uint256 _sessionId) {
         require(msg.sender == sessions[_sessionId].player2, "Only player2 can perform this action");
         _;
     }
-
+    // Modifier to check if a session exists
     modifier sessionExists(uint256 _sessionId) {
         require(sessions[_sessionId].player1 != address(0), "Session does not exist");
         _;
     }
-
+    // Modifier to check if a session is not closed
     modifier sessionNotClosed(uint256 _sessionId) {
         require(!sessions[_sessionId].isSessionClosed, "Session is already closed");
         _;
     }
 
+/* The createSession function uses block.timestamp and msg.sender to generate a session ID. While this approach works, it might be vulnerable to miner manipulation. Consider using a more robust method for generating unique IDs.*/
+    // Function to create a new game session
     function createSession(bytes32 _wordHash) external payable {
         require(msg.value > 0, "Bet amount must be greater than 0");
 
@@ -62,6 +69,8 @@ contract PendulumGame {
         emit SessionCreated(sessionId, msg.sender, msg.value);
     }
 
+/*The joinSession function correctly checks if the session is already joined and if the bet amount is correct. Consider adding a check to ensure the session exists before allowing a join.*/
+    // Function for a player to join an existing game session
     function joinSession(uint256 _sessionId) external payable sessionExists(_sessionId) sessionNotClosed(_sessionId) {
         Session storage session = sessions[_sessionId];
         require(session.player2 == address(0), "Session already joined");
@@ -71,6 +80,8 @@ contract PendulumGame {
         emit SessionJoined(_sessionId, msg.sender);
     }
 
+/*The revealWord function correctly restricts access to player1. Consider adding a check to ensure the word hasn't been revealed already.*/
+    // Function to reveal the word for a game session
     function revealWord(uint256 _sessionId, string memory _word) external 
         sessionExists(_sessionId) 
         sessionNotClosed(_sessionId) 
@@ -85,6 +96,8 @@ contract PendulumGame {
         emit WordRevealed(_sessionId);
     }
 
+/* The makeGuess function is incomplete. You'll need to implement the logic for checking guesses and updating the game state.*/
+    // Function for a player to make a guess
     function makeGuess(uint256 _sessionId, string memory _guess) external 
         sessionExists(_sessionId) 
         sessionNotClosed(_sessionId) 
@@ -118,6 +131,10 @@ contract PendulumGame {
         }
     }
 
+/* The closeSession function has good access control but might have some logical issues:
+It always sets the winner to the opposite of who called the function if the word is revealed.
+It doesn't check if the game is actually finished (all guesses used or word guessed correctly).*/
+    // Function to close a game session and distribute funds
     function closeSession(uint256 _sessionId) public sessionExists(_sessionId) sessionNotClosed(_sessionId) {
         Session storage session = sessions[_sessionId];
         require(msg.sender == session.player1 || msg.sender == session.player2, "Not authorized");
@@ -144,6 +161,7 @@ contract PendulumGame {
         session.isSessionClosed = true;
     }
 
+    // Function to get the state of a game session
     function getSessionState(uint256 _sessionId) external view 
         sessionExists(_sessionId) 
         returns (
@@ -166,6 +184,7 @@ contract PendulumGame {
         );
     }
 
+    // Function to check if a word contains a specific letter
     function contains(string memory _word, bytes1 _letter) private pure returns (bool) {
         bytes memory wordBytes = bytes(_word);
         for (uint i = 0; i < wordBytes.length; i++) {
@@ -180,57 +199,6 @@ contract PendulumGame {
 
 
 /* 
-Key improvements and changes:
-
-Added a sessionCounter to generate unique session IDs.
-Implemented a hash commitment scheme for the word.
-Added more detailed game state tracking (guesses left, guessed letters).
-Improved access control with custom modifiers.
-Enhanced error messages and added more checks.
-Implemented complete guess checking logic.
-Added a getSessionState function to check the current state of a session.
-Improved the closeSession function to correctly determine the winner.
-Added a contains helper function to check if a word contains a letter.
-Used uint256 consistently for potential gas optimization.
-Implemented automatic session closure when the game ends.
-Added events for important state changes.
-
-
-
-
-
-Session Creation:
-
-The createSession function uses block.timestamp and msg.sender to generate a session ID. While this approach works, it might be vulnerable to miner manipulation. Consider using a more robust method for generating unique IDs.
-
-
-Joining a Session:
-
-The joinSession function correctly checks if the session is already joined and if the bet amount is correct.
-Consider adding a check to ensure the session exists before allowing a join.
-
-
-Word Revelation:
-
-The revealWord function correctly restricts access to player1.
-Consider adding a check to ensure the word hasn't been revealed already.
-
-
-Guessing:
-
-The makeGuess function is incomplete. You'll need to implement the logic for checking guesses and updating the game state.
-
-
-Session Closure:
-
-The closeSession function has good access control but might have some logical issues:
-
-It always sets the winner to the opposite of who called the function if the word is revealed.
-It doesn't check if the game is actually finished (all guesses used or word guessed correctly).
-
-
-
-
 General Improvements:
 
 Consider adding more detailed error messages in require statements.
